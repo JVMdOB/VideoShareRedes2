@@ -2,13 +2,19 @@ import socket
 import threading
 import pickle
 from bcrypt import hashpw, gensalt, checkpw
+from time import sleep
 
 class Servidor:
     def __init__(self) -> None:
         # informacoes do servidor
         self.PORTA = 9500
         self.HOST = '0.0.0.0'
+        maximo = 10
         self.registros = []
+        self.servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.servidor.bind((self.HOST, self.PORTA))
+        self.servidor.listen(maximo)
+
 
     def envia_msg(self, conn, msg):
         conn.send(pickle.dumps(msg))
@@ -23,6 +29,8 @@ class Servidor:
     def envia_pergunta(self, conn, msg):
         """Envia msg ao usuario e aguarda resposta"""
         self.envia_msg(conn, msg)
+        sleep(0.2)
+        self.envia_msg(conn, "1")
         return self.recebe_msg(conn)
     
     def busca_usuario(self, chave: str, busca: str) -> dict:
@@ -66,7 +74,7 @@ class Servidor:
     def exibe_usuarios(self, conn: socket.socket) -> None:
         """Exibe para o usuário solicitante todos os usuários cadastrados no sistema."""
         usuarios_string = ""
-        if len(self.registros == 0):
+        if len(self.registros) == 0:
             usuarios_string = "Não há usuários cadastrados por enquanto"
         else:
             usuarios_string = "NOME \t\t IP \t\t PORTA\n"
@@ -95,6 +103,36 @@ class Servidor:
                         self.envia_msg(conn, "Senha incorreta")
                         senha = self.envia_pergunta(conn, "Digite a senha para confirmar exclusão ou \"Sair\" para cancelar.")
                     self.registros.remove(user)
+                    self.envia_msg(conn, "Usuário excluído com sucesso.")
+    
+    def finaliza(self, conn):
+        self.envia_msg(conn, "Encerrando.")
+        self.envia_msg(conn, "2")
+        conn.close()
+    def cliente_menu(self, conn: socket.socket, addr : list):
+        # Enviando mensagem inicial a cliente e aguardando resposta
+        msg_inicial = """Seja bem vindo!
+Para utilizar o sistema, digite o número associado a opção que deseja:
+        1 - Se cadastrar no sistema
+        2 - Checar usuários cadastrados
+        3 - Deletar usuário cadastrado
+        
+Ou digite \"Sair\" para sair."""
+        try:
+            resposta = self.envia_pergunta(conn, msg_inicial)
+            while resposta.lower() != "sair":
+                if resposta == "1":
+                    self.cadastra_usuario(conn, addr)
+                elif resposta == "2":
+                    self.exibe_usuarios(conn)
+                elif resposta == "3":
+                    self.deleta_usuario(conn, addr)
+                else:
+                    self.envia_msg(conn, "Resposta inválida. Digite apenas o número desejado ou \"Sair\"")
+                resposta = self.envia_pergunta(conn, msg_inicial)
+        except:
+            self.finaliza(conn)
+        self.finaliza(conn)
 
                     
 
@@ -102,16 +140,6 @@ class Servidor:
 
         
 
-
-
-
-# Configurações do servidor
-HOST = '0.0.0.0'  # Para aceitar conexões de qualquer IP
-PORT = 8080
-MAX_CONNECTIONS = 10  # Número máximo de conexões simultâneas
-
-# Lista para armazenar as conexões dos clientes
-connections = []
 
 def handle_client(client_socket):
     while True:
@@ -123,18 +151,18 @@ def handle_client(client_socket):
     client_socket.close()
 
 # Configuração do servidor
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((HOST, PORT))
-server.listen(MAX_CONNECTIONS)
 
-print(f"Servidor escutando em {HOST}:{PORT}")
 
+servidor = Servidor()
+print(f"Servidor escutando em {servidor.HOST}:{servidor.PORTA}")
 while True:
-    client_socket, addr = server.accept()
-    print(type(client_socket))
-    print(f"Conexão aceita de {addr[0]}:{addr[1]}")
-    
-    # Inicialize uma nova thread para lidar com o cliente
-    client_handler = threading.Thread(target=handle_client, args=(client_socket,))
-    client_handler.start()
+    try:
+        client_socket, addr = servidor.servidor.accept()
+        print(f"Conexão aceita de {addr[0]}:{addr[1]}")
+        
+        # Inicialize uma nova thread para lidar com o cliente
+        client_handler = threading.Thread(target=servidor.cliente_menu, args=(client_socket,addr))
+        client_handler.start()
+    except:
+        pass
 
