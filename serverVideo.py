@@ -29,13 +29,32 @@ MAX_CONNECTIONS = 10  # Número máximo de conexões simultâneas
 connections = []
 
 def handle_client(client_socket):
+    print(f"Conexão em {addr[0]}:{addr[1]}")
     while True:
-        data = client_socket.recv(1024)
-        if not data:
-            break
-        # Faça alguma coisa com os dados recebidos, por exemplo, imprimir na tela
-        print(data)
-    client_socket.close()
+        try:
+                # Recebe dados do cliente
+                data = client_socket.recv(1024)
+                # if not data:
+                #     break
+
+                # Deserializa os dados recebidos usando pickle
+                received_data = pickle.loads(data)
+
+                # Lógica para tratar diferentes tipos de dados recebidos
+                if isinstance(received_data, str):
+                    # Se os dados são uma string, imprima na tela
+                    print(f"Dados recebidos do cliente: {received_data}")
+                else:
+                    # Se os dados não são uma string 
+                    pass
+
+        except Exception as e:
+                print(f"Erro ao lidar com os dados do cliente: {e}")
+                
+
+        # Fecha a conexão com o cliente
+        print(f"Conexão encerrada com {addr[0]}:{addr[1]}")
+        client_socket.close()
 
 # Configuração do servidor
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
