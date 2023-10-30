@@ -1,7 +1,7 @@
 import socket
 
 # Server address and port
-server_host = "177.12.27.67"  # Change this to the IP or hostname of your server
+server_host = "localhost"  # Change this to the IP or hostname of your server
 server_port = 8080  # Use the same port number as your server
 
 # Create a socket and connect to the server

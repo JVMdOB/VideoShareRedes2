@@ -1,6 +1,7 @@
 import socket
 import threading
 import pickle 
+# from pynat import get_ip_info
 
 class Servidor:
     def __init__(self) -> None:
@@ -14,8 +15,8 @@ class Servidor:
         conn.send(pickle.dumps("Digite seu nome de usuário"))
         
 
-        
-
+# a = get_ip_info()
+# print(a)
 
 
 
