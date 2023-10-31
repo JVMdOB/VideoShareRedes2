@@ -34,8 +34,7 @@ class Client:
         
         self.finaliza()
 
-# Server address and port
-server_host = "localhost"  # Change this to the IP or hostname of your server
-server_porta = 9500  # Use the same port number as your server
+ip_servidor = "localhost"  
+server_porta = 9500  
 
-cliente = Client(server_host, server_porta)
+cliente = Client(ip_servidor, server_porta)

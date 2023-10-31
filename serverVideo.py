@@ -42,7 +42,7 @@ class Servidor:
             if msg != None:
                 break	
         return msg
-    
+
     def envia_pergunta(self, conn, msg):
         """Envia mensagem ao usuario e retorna resposta"""
         
@@ -62,6 +62,23 @@ class Servidor:
                 return user
         return None
 
+    def cliente_busca_usuario(self, conn: socket.socket):
+        """Lida com a lógica da busca de um usuário pelo cliente"""
+
+        termo = self.envia_pergunta(conn, "Digite \"ip\" para buscar pelo ip ou \"nome\" para buscar por nome. Para cancelar, digite \"Sair\".")
+        while termo.lower() not in ["ip", "sair", "nome"]:
+            termo = self.envia_pergunta(conn, "Termo não reconhecido. Digite \"ip\" para buscar pelo ip ou \"nome\" para buscar por nome. Para cancelar, digite \"Sair\".")
+
+        if termo.lower() == "sair":
+            return
+        busca = self.envia_pergunta(conn, "Digite o termo a ser buscado.")
+        user = self.busca_usuario(termo.lower(), busca)
+        if user:
+            self.envia_msg(conn, f"\nUsuário: {user.get('nome')} \nIP: {user.get('ip')}\nPorta: {user.get('porta')}")
+        else:
+            self.envia_msg(conn, "Usuário não encontrado.")
+
+        
     def cadastra_usuario(self, conn: socket.socket, addr: str) -> None:
         """Cria um usuário e armazena na lista de usuários. Pede informações de nome de usuário, senha, e porta. Também armazena o IP da conexão."""
         
@@ -74,13 +91,15 @@ class Servidor:
             self.envia_msg(conn, "Nome já cadastrado! Tente de novo.\n")
             return self.cadastra_usuario(conn,addr)
         reg["nome"] = nome
-        p = self.envia_pergunta(conn, f"Você está atualmente utilizando a porta {addr[1]}. Caso queira cadastrar esta porta digite 0, caso contrário digite o número da porta que deseja cadastrar.\n")
+        p = self.envia_pergunta(conn, f"Você está atualmente utilizando a porta {addr[1]}. Caso queira cadastrar esta porta digite 0, caso contrário digite o número da porta que deseja cadastrar. Digite \"Sair\" para cancelar.\n")
+        if p.lower() == "sair":
+            return
         if p != "0":
             try:
                 port = int(p)
                 reg["porta"] = port
             except:
-                self.envia_msg("Valor inválido de porta. Reiniciando cadastro.")
+                self.envia_msg(conn, "Valor inválido de porta. Reiniciando cadastro.")
                 return self.cadastra_usuario(conn, addr)
 
         senha = self.envia_pergunta(conn, "Digite uma senha para o usuário ou \"Sair\" para cancelar.\n")
@@ -91,16 +110,16 @@ class Servidor:
             return
         
         salt = gensalt() # gerando um salt para o hash da senha
-        reg['senha'] = hashpw(senha.encode(), salt) # armazenando o hash a fim de evitar senhas diretamente armazenadas
+        reg['senha'] = hashpw(senha.encode(), salt).decode() # armazenando o hash a fim de evitar senhas diretamente armazenadas
         confirmacao = self.envia_pergunta(conn, "Confirme a senha ou digite \"Sair\"\n")
-        while not checkpw(confirmacao.encode(), reg['senha']): # verificando se senhas são iguais
+        while not checkpw(confirmacao.encode(), reg['senha'].encode()): # verificando se senhas são iguais
             if confirmacao.lower() == "sair":
                 return
             confirmacao = self.envia_pergunta(conn, "As senhas não batem. Tente novamente ou \"Sair\" para cancelar\n")
         
         self.envia_msg(conn, "Cadastro concluído com sucesso.\n")
-        self.registros.append(reg) 
-        
+        self.registros.append(reg)
+        self.salva_json()
 
     def exibe_usuarios(self, conn: socket.socket) -> None:
         """Exibe para o usuário solicitante todos os usuários cadastrados no sistema."""
@@ -113,7 +132,7 @@ class Servidor:
                 usuarios_string += f"{usuario.get('nome')}\t\t\t{usuario.get('ip')}\t\t\t{usuario.get('porta')}\n"
         self.envia_msg(conn, usuarios_string)
     
-    def deleta_usuario(self, conn: socket.socket, addr: str) -> None: # TODO:criar tbm atualiza_usuario
+    def deleta_usuario(self, conn: socket.socket, addr: str) -> None:  
         """Deleta usuário ou pelo IP ou pelo nome de usuario e senha"""
         user = self.busca_usuario("ip", addr[0])
         if user:
@@ -130,11 +149,12 @@ class Servidor:
                 else:
                     senha = ""
                     senha = self.envia_pergunta(conn, "Usuário encontrado. Digite a senha para confirmar exclusão ou \"Sair\" para cancelar.\n")
-                    while not checkpw(senha.encode(), user.get('senha')):
+                    while not checkpw(senha.encode(), user.get('senha').encode()):
                         self.envia_msg(conn, "Senha incorreta")
                         senha = self.envia_pergunta(conn, "Digite a senha para confirmar exclusão ou \"Sair\" para cancelar.\n")
                     self.registros.remove(user)
                     self.envia_msg(conn, "Usuário excluído com sucesso.\n")
+                    self.salva_json()
     
     def finaliza(self, conn):
         self.envia_msg(conn, "Encerrando.\n")
@@ -142,13 +162,15 @@ class Servidor:
         conn.close()
 
     def cliente_menu(self, conn: socket.socket, addr : list):
-        """Gerencia a conexão inicial com o cliente e """
+        """Gerencia a conexão inicial com o cliente"""
         # Enviando mensagem inicial a cliente e aguardando resposta
-        msg_inicial = """Seja bem vindo!
+        self.envia_msg(conn, "Seja bem vindo!")
+        msg_inicial = """
 Para utilizar o sistema, digite o número associado a opção que deseja:
         1 - Se cadastrar no sistema
         2 - Checar usuários cadastrados
         3 - Deletar usuário cadastrado
+        4 - Buscar usuário
         
 Ou digite \"Sair\" para sair.\n"""
         try:
@@ -161,6 +183,8 @@ Ou digite \"Sair\" para sair.\n"""
                     self.exibe_usuarios(conn)
                 elif resposta == "3":
                     self.deleta_usuario(conn, addr)
+                elif resposta == "4":
+                    self.cliente_busca_usuario(conn)
                 else:
                     self.envia_msg(conn, "Resposta inválida. Digite apenas o número desejado ou \"Sair\"\n")
                 resposta = self.envia_pergunta(conn, msg_inicial)
@@ -168,34 +192,15 @@ Ou digite \"Sair\" para sair.\n"""
             self.finaliza(conn)
         self.finaliza(conn)
 
-                    
-
-            
-
-        
-
-
-def handle_client(client_socket):
-    while True:
-        data = client_socket.recv(1024)
-        if not data:
-            break
-        # Faça alguma coisa com os dados recebidos, por exemplo, imprimir na tela
-        print(data)
-    client_socket.close()
-
-# Configuração do servidor
-
-
 servidor = Servidor()
 print(f"Servidor escutando em {servidor.HOST}:{servidor.PORTA}")
 while True:
     try:
-        client_socket, addr = servidor.servidor.accept()
+        conn, addr = servidor.servidor.accept()
         print(f"Conexão aceita de {addr[0]}:{addr[1]}")
         
         # Inicialize uma nova thread para lidar com o cliente
-        client_handler = threading.Thread(target=servidor.cliente_menu, args=(client_socket,addr))
+        client_handler = threading.Thread(target=servidor.cliente_menu, args=(conn,addr))
         client_handler.start()
     except:
         pass
