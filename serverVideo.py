@@ -12,7 +12,8 @@ class Servidor:
         self.ARQ_USUARIOS = "usuarios.json"
         self.HOST = '0.0.0.0'
         maximo = 10
-        self.registros = []
+        self.registros = self.carrega_json()
+
         # inicializando o servidor
         self.servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.servidor.bind((self.HOST, self.PORTA))
