@@ -8,7 +8,7 @@ import json
 class Servidor:
     def __init__(self) -> None:
         # informacoes do servidor
-        self.PORTA = 9500
+        self.PORTA = 9502
         self.ARQ_USUARIOS = "usuarios.json"
         self.HOST = '0.0.0.0'
         maximo = 10
@@ -192,12 +192,50 @@ Ou digite \"Sair\" para sair.\n"""
             self.finaliza(conn)
         self.finaliza(conn)
 
+
+    def aceitar_chamada(self, conn):
+        # Receber a solicitação de chamada
+        solicitacao = self.recebe_msg(conn)
+
+        # Decidir se aceita ou rejeita a chamada
+        # Aqui, estamos aceitando todas as chamadas, mas você pode adicionar sua própria lógica
+        aceitar = True
+
+        # Enviar a resposta
+        if aceitar:
+            self.envia_msg(conn, "Chamada aceita")
+            return True
+        else:
+            self.envia_msg(conn, "Chamada rejeitada")
+            return False
+
+    def rejeitar_chamada(self, conn):
+        # Enviar uma mensagem específica para o cliente para indicar que a chamada foi rejeitada
+        pass
+
+    def informar_portas(self, conn, porta_audio, porta_video):
+        # Enviar o número das portas para o cliente
+        self.envia_msg(conn, (porta_audio, porta_video))
+
+porta_audio = 5000
+porta_video = 5001
+
 servidor = Servidor()
 print(f"Servidor escutando em {servidor.HOST}:{servidor.PORTA}")
 while True:
     try:
         conn, addr = servidor.servidor.accept()
         print(f"Conexão aceita de {addr[0]}:{addr[1]}")
+        
+        # Receber a solicitação de chamada
+        solicitacao = servidor.recebe_msg(conn)
+        
+        # Decidir se aceita ou rejeita a chamada
+        if servidor.aceitar_chamada(conn):
+            # Se a chamada for aceita, informar as portas
+            servidor.informar_portas(conn, porta_audio, porta_video)
+        else:
+            continue
         
         # Inicialize uma nova thread para lidar com o cliente
         client_handler = threading.Thread(target=servidor.cliente_menu, args=(conn,addr))
